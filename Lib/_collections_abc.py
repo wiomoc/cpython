@@ -295,6 +295,17 @@ class Iterable(metaclass=ABCMeta):
             return _check_methods(C, "__iter__")
         return NotImplemented
 
+    def __init_subclass__(cls, /, **kwargs):
+        n_type_args = kwargs.get("n_type_args")
+        if n_type_args is not None:
+            def class_getitem_validated(cls, params):
+                if not isinstance(params, tuple):
+                    params = (params,)
+                if len(params) != n_type_args:
+                    raise TypeError("invalid count of type arguments")
+                return GenericAlias(cls, params)
+            cls.__class_getitem__ = classmethod(class_getitem_validated)
+
     __class_getitem__ = classmethod(GenericAlias)
 
 
@@ -772,7 +783,7 @@ MutableSet.register(set)
 
 ### MAPPINGS ###
 
-class Mapping(Collection):
+class Mapping(Collection, n_type_args=2):
     """A Mapping is a generic container for associating key/value
     pairs.
 
@@ -861,7 +872,7 @@ class KeysView(MappingView, Set):
 KeysView.register(dict_keys)
 
 
-class ItemsView(MappingView, Set):
+class ItemsView(MappingView, Set, n_type_args=1):
 
     __slots__ = ()
 
@@ -886,7 +897,7 @@ class ItemsView(MappingView, Set):
 ItemsView.register(dict_items)
 
 
-class ValuesView(MappingView, Collection):
+class ValuesView(MappingView, Collection, n_type_args=1):
 
     __slots__ = ()
 

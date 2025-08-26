@@ -760,6 +760,13 @@ class Counter(dict):
             d = dict(self)
         return f'{self.__class__.__name__}({d!r})'
 
+
+    @classmethod
+    def __class_getitem__(cls, args):
+        if not isinstance(args, tuple):
+            args = (args,)
+        return super(Counter, cls).__class_getitem__((int, *args))
+
     # Multiset-style mathematical operations discussed in:
     #       Knuth TAOCP Volume II section 4.6.3 exercise 19
     #       and at http://en.wikipedia.org/wiki/Multiset

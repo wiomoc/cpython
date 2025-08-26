@@ -4789,6 +4789,24 @@ If E is present and has a .keys() method, then does:  for k in E.keys(): D[k] = 
 If E is present and lacks a .keys() method, then does:  for k, v in E: D[k] = v\n\
 In either case, this is followed by: for k in F:  D[k] = F[k]");
 
+
+static PyObject *
+PyDict_ClassGetItem(PyObject *origin, PyObject *args)
+{
+    if (!PyTuple_Check(args)) {
+        // implies only a single arg given
+        PyErr_SetString(PyExc_TypeError, "two params required");
+        return NULL;
+    }
+    else if (PyTuple_Size(args) > 2){
+        PyErr_SetString(PyExc_TypeError, "not more than two params required");
+        return NULL;
+    }
+    else {
+        return Py_GenericAlias(origin, args);
+    }
+}
+
 /* Forward */
 
 static PyMethodDef mapp_methods[] = {
@@ -4809,7 +4827,7 @@ static PyMethodDef mapp_methods[] = {
     DICT_CLEAR_METHODDEF
     DICT_COPY_METHODDEF
     DICT___REVERSED___METHODDEF
-    {"__class_getitem__", Py_GenericAlias, METH_O|METH_CLASS, PyDoc_STR("See PEP 585")},
+    {"__class_getitem__", PyDict_ClassGetItem, METH_O|METH_CLASS, PyDoc_STR("See PEP 585")},
     {NULL,              NULL}   /* sentinel */
 };
 
