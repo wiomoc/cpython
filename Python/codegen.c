@@ -998,7 +998,7 @@ codegen_apply_decorators(compiler *c, asdl_expr_seq* decos)
 
 static int
 codegen_kwonlydefaults(compiler *c, location loc,
-                       asdl_arg_seq *kwonlyargs, asdl_expr_seq *kw_defaults)
+                       asdl_arg_seq *kwonlyargs, asdl_arg_default_seq *kw_defaults)
 {
     /* Push a dict of keyword-only default values.
 
@@ -1007,7 +1007,7 @@ codegen_kwonlydefaults(compiler *c, location loc,
     int default_count = 0;
     for (int i = 0; i < asdl_seq_LEN(kwonlyargs); i++) {
         arg_ty arg = asdl_seq_GET(kwonlyargs, i);
-        expr_ty default_ = asdl_seq_GET(kw_defaults, i);
+        arg_default_ty default_ = asdl_seq_GET(kw_defaults, i);
         if (default_) {
             default_count++;
             PyObject *mangled = _PyCompile_MaybeMangle(c, arg->arg);
@@ -1015,7 +1015,12 @@ codegen_kwonlydefaults(compiler *c, location loc,
                 return ERROR;
             }
             ADDOP_LOAD_CONST_NEW(c, loc, mangled);
-            VISIT(c, expr, default_);
+            if(default_->is_defered) {
+                ADDOP_LOAD_CONST(c, loc, Py_Ellipsis);
+            }
+            else {
+                VISIT(c, expr, default_->value);
+            }
         }
     }
     if (default_count) {
@@ -1156,7 +1161,15 @@ static int
 codegen_defaults(compiler *c, arguments_ty args,
                         location loc)
 {
-    VISIT_SEQ(c, expr, args->defaults);
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(args->defaults); i++) {
+        arg_default_ty default_arg = asdl_seq_GET(args->defaults, i);
+        if (default_arg->is_defered) {
+            ADDOP_LOAD_CONST(c, loc, Py_Ellipsis);
+        }
+        else {
+            VISIT(c, expr, default_arg->value);
+        }
+    }
     ADDOP_I(c, loc, BUILD_TUPLE, asdl_seq_LEN(args->defaults));
     return SUCCESS;
 }
@@ -1343,11 +1356,19 @@ codegen_function_body(compiler *c, stmt_ty s, int is_async, Py_ssize_t funcflags
 
         scope_type = COMPILE_SCOPE_FUNCTION;
     }
-
+    Py_ssize_t deferedargcount = 0;
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(args->defaults); i++) {
+        if(asdl_seq_GET(args->defaults, i)->is_defered) deferedargcount++;
+    }
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(args->kw_defaults); i++) {
+        arg_default_ty default_ = asdl_seq_GET(args->kw_defaults, i);
+        if(default_ && default_->is_defered) deferedargcount++;
+    }
     _PyCompile_CodeUnitMetadata umd = {
         .u_argcount = asdl_seq_LEN(args->args),
         .u_posonlyargcount = asdl_seq_LEN(args->posonlyargs),
         .u_kwonlyargcount = asdl_seq_LEN(args->kwonlyargs),
+        .u_deferedargcount = deferedargcount,
     };
     RETURN_IF_ERROR(
         codegen_enter_scope(c, name, scope_type, (void *)s, firstlineno, NULL, &umd));
@@ -1376,6 +1397,41 @@ codegen_function_body(compiler *c, stmt_ty s, int is_async, Py_ssize_t funcflags
         RETURN_IF_ERROR(
             _PyCompile_PushFBlock(c, NO_LOCATION, COMPILE_FBLOCK_STOP_ITERATION,
                                   start, NO_LABEL, NULL));
+    }
+
+    int posonlyargs_count = asdl_seq_LEN(args->posonlyargs);
+    int first_arg_with_default = (posonlyargs_count + asdl_seq_LEN(args->args))
+                                    - asdl_seq_LEN(args->defaults);
+    assert(first_arg_with_default >= 0);
+    for (Py_ssize_t d = 0, a = first_arg_with_default;
+            d < asdl_seq_LEN(args->defaults);
+            d++, a++) {
+        arg_default_ty default_arg = asdl_seq_GET(args->defaults, d);
+        if(!default_arg->is_defered) continue;
+        NEW_JUMP_TARGET_LABEL(c, skip);
+        ADDOP_JUMP(c, NO_LOCATION, POP_JUMP_IF_FALSE, skip);
+        VISIT_IN_SCOPE(c, expr, default_arg->value);
+        arg_ty arg;
+        if (a < posonlyargs_count) {
+            arg = asdl_seq_GET(args->posonlyargs, a);
+        } else {
+            arg = asdl_seq_GET(args->args, a - posonlyargs_count);
+        }
+        RETURN_IF_ERROR_IN_SCOPE(c,
+            codegen_nameop(c, LOC(default_arg->value), arg->arg, Store));
+        USE_LABEL(c, skip);
+    }
+
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(args->kwonlyargs); i++) {
+        arg_default_ty default_arg = asdl_seq_GET(args->kw_defaults, i);
+        if(!default_arg || !default_arg->is_defered) continue;
+        NEW_JUMP_TARGET_LABEL(c, skip);
+        ADDOP_JUMP(c, NO_LOCATION, POP_JUMP_IF_FALSE, skip);
+        VISIT_IN_SCOPE(c, expr, default_arg->value);
+        arg_ty arg = asdl_seq_GET(args->kwonlyargs, i);
+        RETURN_IF_ERROR_IN_SCOPE(c,
+            codegen_nameop(c, LOC(default_arg->value), arg->arg, Store));
+        USE_LABEL(c, skip);
     }
 
     for (Py_ssize_t i = first_instr; i < asdl_seq_LEN(body); i++) {

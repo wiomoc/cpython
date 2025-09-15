@@ -181,6 +181,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->alias_type);
     Py_CLEAR(state->annotation);
     Py_CLEAR(state->arg);
+    Py_CLEAR(state->arg_default_type);
     Py_CLEAR(state->arg_type);
     Py_CLEAR(state->args);
     Py_CLEAR(state->argtypes);
@@ -222,6 +223,7 @@ void _PyAST_Fini(PyInterpreterState *interp)
     Py_CLEAR(state->id);
     Py_CLEAR(state->ifs);
     Py_CLEAR(state->is_async);
+    Py_CLEAR(state->is_defered);
     Py_CLEAR(state->items);
     Py_CLEAR(state->iter);
     Py_CLEAR(state->key);
@@ -327,6 +329,7 @@ static int init_identifiers(struct ast_state *state)
     if ((state->id = PyUnicode_InternFromString("id")) == NULL) return -1;
     if ((state->ifs = PyUnicode_InternFromString("ifs")) == NULL) return -1;
     if ((state->is_async = PyUnicode_InternFromString("is_async")) == NULL) return -1;
+    if ((state->is_defered = PyUnicode_InternFromString("is_defered")) == NULL) return -1;
     if ((state->items = PyUnicode_InternFromString("items")) == NULL) return -1;
     if ((state->iter = PyUnicode_InternFromString("iter")) == NULL) return -1;
     if ((state->key = PyUnicode_InternFromString("key")) == NULL) return -1;
@@ -383,6 +386,7 @@ GENERATE_ASDL_SEQ_CONSTRUCTOR(expr, expr_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(comprehension, comprehension_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(excepthandler, excepthandler_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(arguments, arguments_ty)
+GENERATE_ASDL_SEQ_CONSTRUCTOR(arg_default, arg_default_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(arg, arg_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(keyword, keyword_ty)
 GENERATE_ASDL_SEQ_CONSTRUCTOR(alias, alias_ty)
@@ -703,6 +707,11 @@ static const char * const arguments_fields[]={
     "kw_defaults",
     "kwarg",
     "defaults",
+};
+static PyObject* ast2obj_arg_default(struct ast_state *state, void*);
+static const char * const arg_default_fields[]={
+    "value",
+    "is_defered",
 };
 static PyObject* ast2obj_arg(struct ast_state *state, void*);
 static const char * const arg_attributes[] = {
@@ -4324,7 +4333,7 @@ add_ast_annotations(struct ast_state *state)
         }
     }
     {
-        PyObject *type = state->expr_type;
+        PyObject *type = state->arg_default_type;
         type = Py_GenericAlias((PyObject *)&PyList_Type, type);
         cond = type != NULL;
         if (!cond) {
@@ -4355,7 +4364,7 @@ add_ast_annotations(struct ast_state *state)
         }
     }
     {
-        PyObject *type = state->expr_type;
+        PyObject *type = state->arg_default_type;
         type = Py_GenericAlias((PyObject *)&PyList_Type, type);
         cond = type != NULL;
         if (!cond) {
@@ -4383,6 +4392,43 @@ add_ast_annotations(struct ast_state *state)
         return 0;
     }
     Py_DECREF(arguments_annotations);
+    PyObject *arg_default_annotations = PyDict_New();
+    if (!arg_default_annotations) return 0;
+    {
+        PyObject *type = state->expr_type;
+        Py_INCREF(type);
+        cond = PyDict_SetItemString(arg_default_annotations, "value", type) ==
+                                    0;
+        Py_DECREF(type);
+        if (!cond) {
+            Py_DECREF(arg_default_annotations);
+            return 0;
+        }
+    }
+    {
+        PyObject *type = (PyObject *)&PyLong_Type;
+        Py_INCREF(type);
+        cond = PyDict_SetItemString(arg_default_annotations, "is_defered",
+                                    type) == 0;
+        Py_DECREF(type);
+        if (!cond) {
+            Py_DECREF(arg_default_annotations);
+            return 0;
+        }
+    }
+    cond = PyObject_SetAttrString(state->arg_default_type, "_field_types",
+                                  arg_default_annotations) == 0;
+    if (!cond) {
+        Py_DECREF(arg_default_annotations);
+        return 0;
+    }
+    cond = PyObject_SetAttrString(state->arg_default_type, "__annotations__",
+                                  arg_default_annotations) == 0;
+    if (!cond) {
+        Py_DECREF(arg_default_annotations);
+        return 0;
+    }
+    Py_DECREF(arg_default_annotations);
     PyObject *arg_annotations = PyDict_New();
     if (!arg_annotations) return 0;
     {
@@ -6813,13 +6859,18 @@ init_types(void *arg)
         return -1;
     state->arguments_type = make_type(state, "arguments", state->AST_type,
                                       arguments_fields, 7,
-        "arguments(arg* posonlyargs, arg* args, arg? vararg, arg* kwonlyargs, expr* kw_defaults, arg? kwarg, expr* defaults)");
+        "arguments(arg* posonlyargs, arg* args, arg? vararg, arg* kwonlyargs, arg_default* kw_defaults, arg? kwarg, arg_default* defaults)");
     if (!state->arguments_type) return -1;
     if (add_attributes(state, state->arguments_type, NULL, 0) < 0) return -1;
     if (PyObject_SetAttr(state->arguments_type, state->vararg, Py_None) == -1)
         return -1;
     if (PyObject_SetAttr(state->arguments_type, state->kwarg, Py_None) == -1)
         return -1;
+    state->arg_default_type = make_type(state, "arg_default", state->AST_type,
+                                        arg_default_fields, 2,
+        "arg_default(expr value, int is_defered)");
+    if (!state->arg_default_type) return -1;
+    if (add_attributes(state, state->arg_default_type, NULL, 0) < 0) return -1;
     state->arg_type = make_type(state, "arg", state->AST_type, arg_fields, 3,
         "arg(identifier arg, expr? annotation, string? type_comment)");
     if (!state->arg_type) return -1;
@@ -7003,6 +7054,8 @@ static int obj2ast_excepthandler(struct ast_state *state, PyObject* obj,
                                  excepthandler_ty* out, PyArena* arena);
 static int obj2ast_arguments(struct ast_state *state, PyObject* obj,
                              arguments_ty* out, PyArena* arena);
+static int obj2ast_arg_default(struct ast_state *state, PyObject* obj,
+                               arg_default_ty* out, PyArena* arena);
 static int obj2ast_arg(struct ast_state *state, PyObject* obj, arg_ty* out,
                        PyArena* arena);
 static int obj2ast_keyword(struct ast_state *state, PyObject* obj, keyword_ty*
@@ -8512,9 +8565,9 @@ _PyAST_ExceptHandler(expr_ty type, identifier name, asdl_stmt_seq * body, int
 
 arguments_ty
 _PyAST_arguments(asdl_arg_seq * posonlyargs, asdl_arg_seq * args, arg_ty
-                 vararg, asdl_arg_seq * kwonlyargs, asdl_expr_seq *
-                 kw_defaults, arg_ty kwarg, asdl_expr_seq * defaults, PyArena
-                 *arena)
+                 vararg, asdl_arg_seq * kwonlyargs, asdl_arg_default_seq *
+                 kw_defaults, arg_ty kwarg, asdl_arg_default_seq * defaults,
+                 PyArena *arena)
 {
     arguments_ty p;
     p = (arguments_ty)_PyArena_Malloc(arena, sizeof(*p));
@@ -8527,6 +8580,23 @@ _PyAST_arguments(asdl_arg_seq * posonlyargs, asdl_arg_seq * args, arg_ty
     p->kw_defaults = kw_defaults;
     p->kwarg = kwarg;
     p->defaults = defaults;
+    return p;
+}
+
+arg_default_ty
+_PyAST_arg_default(expr_ty value, int is_defered, PyArena *arena)
+{
+    arg_default_ty p;
+    if (!value) {
+        PyErr_SetString(PyExc_ValueError,
+                        "field 'value' is required for arg_default");
+        return NULL;
+    }
+    p = (arg_default_ty)_PyArena_Malloc(arena, sizeof(*p));
+    if (!p)
+        return NULL;
+    p->value = value;
+    p->is_defered = is_defered;
     return p;
 }
 
@@ -10319,7 +10389,7 @@ ast2obj_arguments(struct ast_state *state, void* _o)
     if (PyObject_SetAttr(result, state->kwonlyargs, value) == -1)
         goto failed;
     Py_DECREF(value);
-    value = ast2obj_list(state, (asdl_seq*)o->kw_defaults, ast2obj_expr);
+    value = ast2obj_list(state, (asdl_seq*)o->kw_defaults, ast2obj_arg_default);
     if (!value) goto failed;
     if (PyObject_SetAttr(result, state->kw_defaults, value) == -1)
         goto failed;
@@ -10329,9 +10399,43 @@ ast2obj_arguments(struct ast_state *state, void* _o)
     if (PyObject_SetAttr(result, state->kwarg, value) == -1)
         goto failed;
     Py_DECREF(value);
-    value = ast2obj_list(state, (asdl_seq*)o->defaults, ast2obj_expr);
+    value = ast2obj_list(state, (asdl_seq*)o->defaults, ast2obj_arg_default);
     if (!value) goto failed;
     if (PyObject_SetAttr(result, state->defaults, value) == -1)
+        goto failed;
+    Py_DECREF(value);
+    Py_LeaveRecursiveCall();
+    return result;
+failed:
+    Py_LeaveRecursiveCall();
+    Py_XDECREF(value);
+    Py_XDECREF(result);
+    return NULL;
+}
+
+PyObject*
+ast2obj_arg_default(struct ast_state *state, void* _o)
+{
+    arg_default_ty o = (arg_default_ty)_o;
+    PyObject *result = NULL, *value = NULL;
+    PyTypeObject *tp;
+    if (!o) {
+        Py_RETURN_NONE;
+    }
+    if (Py_EnterRecursiveCall("during  ast construction")) {
+        return NULL;
+    }
+    tp = (PyTypeObject *)state->arg_default_type;
+    result = PyType_GenericNew(tp, NULL, NULL);
+    if (!result) return NULL;
+    value = ast2obj_expr(state, o->value);
+    if (!value) goto failed;
+    if (PyObject_SetAttr(result, state->value, value) == -1)
+        goto failed;
+    Py_DECREF(value);
+    value = ast2obj_int(state, o->is_defered);
+    if (!value) goto failed;
+    if (PyObject_SetAttr(result, state->is_defered, value) == -1)
         goto failed;
     Py_DECREF(value);
     Py_LeaveRecursiveCall();
@@ -16305,9 +16409,9 @@ obj2ast_arguments(struct ast_state *state, PyObject* obj, arguments_ty* out,
     asdl_arg_seq* args;
     arg_ty vararg;
     asdl_arg_seq* kwonlyargs;
-    asdl_expr_seq* kw_defaults;
+    asdl_arg_default_seq* kw_defaults;
     arg_ty kwarg;
-    asdl_expr_seq* defaults;
+    asdl_arg_default_seq* defaults;
 
     if (PyObject_GetOptionalAttr(obj, state->posonlyargs, &tmp) < 0) {
         return -1;
@@ -16458,15 +16562,15 @@ obj2ast_arguments(struct ast_state *state, PyObject* obj, arguments_ty* out,
             goto failed;
         }
         len = PyList_GET_SIZE(tmp);
-        kw_defaults = _Py_asdl_expr_seq_new(len, arena);
+        kw_defaults = _Py_asdl_arg_default_seq_new(len, arena);
         if (kw_defaults == NULL) goto failed;
         for (i = 0; i < len; i++) {
-            expr_ty val;
+            arg_default_ty val;
             PyObject *tmp2 = Py_NewRef(PyList_GET_ITEM(tmp, i));
             if (_Py_EnterRecursiveCall(" while traversing 'arguments' node")) {
                 goto failed;
             }
-            res = obj2ast_expr(state, tmp2, &val, arena);
+            res = obj2ast_arg_default(state, tmp2, &val, arena);
             _Py_LeaveRecursiveCall();
             Py_DECREF(tmp2);
             if (res != 0) goto failed;
@@ -16513,15 +16617,15 @@ obj2ast_arguments(struct ast_state *state, PyObject* obj, arguments_ty* out,
             goto failed;
         }
         len = PyList_GET_SIZE(tmp);
-        defaults = _Py_asdl_expr_seq_new(len, arena);
+        defaults = _Py_asdl_arg_default_seq_new(len, arena);
         if (defaults == NULL) goto failed;
         for (i = 0; i < len; i++) {
-            expr_ty val;
+            arg_default_ty val;
             PyObject *tmp2 = Py_NewRef(PyList_GET_ITEM(tmp, i));
             if (_Py_EnterRecursiveCall(" while traversing 'arguments' node")) {
                 goto failed;
             }
-            res = obj2ast_expr(state, tmp2, &val, arena);
+            res = obj2ast_arg_default(state, tmp2, &val, arena);
             _Py_LeaveRecursiveCall();
             Py_DECREF(tmp2);
             if (res != 0) goto failed;
@@ -16535,6 +16639,56 @@ obj2ast_arguments(struct ast_state *state, PyObject* obj, arguments_ty* out,
     }
     *out = _PyAST_arguments(posonlyargs, args, vararg, kwonlyargs, kw_defaults,
                             kwarg, defaults, arena);
+    if (*out == NULL) goto failed;
+    return 0;
+failed:
+    Py_XDECREF(tmp);
+    return -1;
+}
+
+int
+obj2ast_arg_default(struct ast_state *state, PyObject* obj, arg_default_ty*
+                    out, PyArena* arena)
+{
+    PyObject* tmp = NULL;
+    expr_ty value;
+    int is_defered;
+
+    if (PyObject_GetOptionalAttr(obj, state->value, &tmp) < 0) {
+        return -1;
+    }
+    if (tmp == NULL) {
+        PyErr_SetString(PyExc_TypeError, "required field \"value\" missing from arg_default");
+        return -1;
+    }
+    else {
+        int res;
+        if (_Py_EnterRecursiveCall(" while traversing 'arg_default' node")) {
+            goto failed;
+        }
+        res = obj2ast_expr(state, tmp, &value, arena);
+        _Py_LeaveRecursiveCall();
+        if (res != 0) goto failed;
+        Py_CLEAR(tmp);
+    }
+    if (PyObject_GetOptionalAttr(obj, state->is_defered, &tmp) < 0) {
+        return -1;
+    }
+    if (tmp == NULL) {
+        PyErr_SetString(PyExc_TypeError, "required field \"is_defered\" missing from arg_default");
+        return -1;
+    }
+    else {
+        int res;
+        if (_Py_EnterRecursiveCall(" while traversing 'arg_default' node")) {
+            goto failed;
+        }
+        res = obj2ast_int(state, tmp, &is_defered, arena);
+        _Py_LeaveRecursiveCall();
+        if (res != 0) goto failed;
+        Py_CLEAR(tmp);
+    }
+    *out = _PyAST_arg_default(value, is_defered, arena);
     if (*out == NULL) goto failed;
     return 0;
 failed:
@@ -18321,6 +18475,9 @@ astmodule_exec(PyObject *m)
         return -1;
     }
     if (PyModule_AddObjectRef(m, "arguments", state->arguments_type) < 0) {
+        return -1;
+    }
+    if (PyModule_AddObjectRef(m, "arg_default", state->arg_default_type) < 0) {
         return -1;
     }
     if (PyModule_AddObjectRef(m, "arg", state->arg_type) < 0) {

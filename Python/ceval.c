@@ -1554,7 +1554,7 @@ get_exception_handler(PyCodeObject *code, int index, int *level, int *handler, i
 }
 
 static int
-initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
+initialize_locals(PyThreadState *tstate, _PyInterpreterFrame *frame, PyFunctionObject *func,
     _PyStackRef *localsplus, _PyStackRef const *args,
     Py_ssize_t argcount, PyObject *kwnames)
 {
@@ -1728,6 +1728,10 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
         goto fail_post_args;
     }
 
+    for (int i = 0; i < co->co_deferedargcount; i++) {
+        localsplus[co->co_nlocalsplus + i] = PyStackRef_False;
+    }
+    frame->stackpointer += co->co_deferedargcount;
     /* Add missing positional arguments (copy default values from defs) */
     if (argcount < co->co_argcount) {
         Py_ssize_t defcount = func->func_defaults == NULL ? 0 : PyTuple_GET_SIZE(func->func_defaults);
@@ -1749,10 +1753,20 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
             i = 0;
         if (defcount) {
             PyObject **defs = &PyTuple_GET_ITEM(func->func_defaults, 0);
+            int defered_idx = 0;
             for (; i < defcount; i++) {
                 if (PyStackRef_AsPyObjectBorrow(localsplus[m+i]) == NULL) {
                     PyObject *def = defs[i];
-                    localsplus[m+i] = PyStackRef_FromPyObjectNew(def);
+                    if(def == Py_Ellipsis) {
+                        localsplus[m+i] = PyStackRef_None;
+                        if (defered_idx < co->co_deferedargcount) {
+                            localsplus[co->co_nlocalsplus + defered_idx] = PyStackRef_True;
+                            defered_idx++;
+                        }
+                    }
+                    else {
+                        localsplus[m+i] = PyStackRef_FromPyObjectNew(def);
+                    }
                 }
             }
         }
@@ -1856,7 +1870,7 @@ _PyEvalFramePushAndInit(PyThreadState *tstate, _PyStackRef func,
         goto fail;
     }
     _PyFrame_Initialize(tstate, frame, func, locals, code, 0, previous);
-    if (initialize_locals(tstate, func_obj, frame->localsplus, args, argcount, kwnames)) {
+    if (initialize_locals(tstate, frame, func_obj, frame->localsplus, args, argcount, kwnames)) {
         assert(frame->owner == FRAME_OWNED_BY_THREAD);
         clear_thread_frame(tstate, frame);
         return NULL;

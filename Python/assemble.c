@@ -600,10 +600,12 @@ makecode(_PyCompile_CodeUnitMetadata *umd, struct assembler *a, PyObject *const_
     assert(umd->u_posonlyargcount < INT_MAX);
     assert(umd->u_argcount < INT_MAX);
     assert(umd->u_kwonlyargcount < INT_MAX);
+    assert(umd->u_deferedargcount < INT_MAX);
     int posonlyargcount = (int)umd->u_posonlyargcount;
     int posorkwargcount = (int)umd->u_argcount;
     assert(INT_MAX - posonlyargcount - posorkwargcount > 0);
     int kwonlyargcount = (int)umd->u_kwonlyargcount;
+    int deferedargcount = (int)umd->u_deferedargcount;
 
     localsplusnames = PyTuple_New(nlocalsplus);
     if (localsplusnames == NULL) {
@@ -639,6 +641,7 @@ makecode(_PyCompile_CodeUnitMetadata *umd, struct assembler *a, PyObject *const_
         .argcount = posonlyargcount + posorkwargcount,
         .posonlyargcount = posonlyargcount,
         .kwonlyargcount = kwonlyargcount,
+        .deferedargcount = deferedargcount,
 
         .stacksize = maxdepth,
 

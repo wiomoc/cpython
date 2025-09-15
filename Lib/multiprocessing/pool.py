@@ -180,7 +180,7 @@ class Pool(object):
     def Process(ctx, *args, **kwds):
         return ctx.Process(*args, **kwds)
 
-    def __init__(self, processes=None, initializer=None, initargs=(),
+    def __init__(self, processes:=os.process_cpu_count() or 1, initializer=None, initargs=(),
                  maxtasksperchild=None, context=None):
         # Attributes initialized early to make sure that they exist in
         # __del__() if __init__() raises an exception
@@ -199,8 +199,6 @@ class Pool(object):
         self._initializer = initializer
         self._initargs = initargs
 
-        if processes is None:
-            processes = os.process_cpu_count() or 1
         if processes < 1:
             raise ValueError("Number of processes must be at least 1")
         if maxtasksperchild is not None:

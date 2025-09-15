@@ -589,6 +589,7 @@ _PyCompile_EnterScope(compiler *c, identifier name, int scope_type,
         u->u_metadata.u_argcount = 0;
         u->u_metadata.u_posonlyargcount = 0;
         u->u_metadata.u_kwonlyargcount = 0;
+        u->u_metadata.u_deferedargcount = 0;
     }
     u->u_ste = _PySymtable_Lookup(c->c_st, key);
     if (!u->u_ste) {
@@ -1646,6 +1647,7 @@ _PyCompile_CodeGen(PyObject *ast, PyObject *filename, PyCompilerFlags *pflags,
     SET_METADATA_INT("argcount", umd->u_argcount);
     SET_METADATA_INT("posonlyargcount", umd->u_posonlyargcount);
     SET_METADATA_INT("kwonlyargcount", umd->u_kwonlyargcount);
+    SET_METADATA_INT("deferedargcount", umd->u_deferedargcount);
 #undef SET_METADATA_INT
 
     int addNone = mod->kind != Expression_kind;

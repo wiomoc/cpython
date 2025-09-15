@@ -125,6 +125,25 @@ expr_context_name(expr_context_ty ctx)
 }
 
 static int
+validate_default_args(asdl_arg_default_seq *default_args, int null_ok) {
+    assert(!PyErr_Occurred());
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(default_args); i++) {
+        arg_default_ty default_arg = asdl_seq_GET(default_args, i);
+        if (default_arg) {
+            if (!validate_expr(default_arg->value, Load))
+                return 0;
+        }
+        else if (!null_ok) {
+            PyErr_SetString(PyExc_ValueError,
+                            "None disallowed in default argument list");
+            return 0;
+        }
+
+    }
+    return 1;
+}
+
+static int
 validate_arguments(arguments_ty args)
 {
     assert(!PyErr_Occurred());
@@ -150,7 +169,8 @@ validate_arguments(arguments_ty args)
                         "kw_defaults on arguments");
         return 0;
     }
-    return validate_exprs(args->defaults, Load, 0) && validate_exprs(args->kw_defaults, Load, 1);
+    return validate_default_args(args->defaults, 0)
+        && validate_default_args(args->kw_defaults, 1);
 }
 
 static int

@@ -539,6 +539,7 @@ init_code(PyCodeObject *co, struct _PyCodeConstructor *con)
     co->co_argcount = con->argcount;
     co->co_posonlyargcount = con->posonlyargcount;
     co->co_kwonlyargcount = con->kwonlyargcount;
+    co->co_deferedargcount = con->deferedargcount;
 
     co->co_stacksize = con->stacksize;
 
@@ -758,7 +759,7 @@ _PyCode_New(struct _PyCodeConstructor *con)
 PyCodeObject *
 PyUnstable_Code_NewWithPosOnlyArgs(
                           int argcount, int posonlyargcount, int kwonlyargcount,
-                          int nlocals, int stacksize, int flags,
+                          int deferedargcount, int nlocals, int stacksize, int flags,
                           PyObject *code, PyObject *consts, PyObject *names,
                           PyObject *varnames, PyObject *freevars, PyObject *cellvars,
                           PyObject *filename, PyObject *name,
@@ -881,6 +882,7 @@ PyUnstable_Code_NewWithPosOnlyArgs(
         .argcount = argcount,
         .posonlyargcount = posonlyargcount,
         .kwonlyargcount = kwonlyargcount,
+        .deferedargcount = deferedargcount,
 
         .stacksize = stacksize,
 
@@ -911,7 +913,7 @@ error:
 
 PyCodeObject *
 PyUnstable_Code_New(int argcount, int kwonlyargcount,
-           int nlocals, int stacksize, int flags,
+           int deferedargcount, int nlocals, int stacksize, int flags,
            PyObject *code, PyObject *consts, PyObject *names,
            PyObject *varnames, PyObject *freevars, PyObject *cellvars,
            PyObject *filename, PyObject *name, PyObject *qualname,
@@ -919,7 +921,7 @@ PyUnstable_Code_New(int argcount, int kwonlyargcount,
            PyObject *linetable,
            PyObject *exceptiontable)
 {
-    return PyCode_NewWithPosOnlyArgs(argcount, 0, kwonlyargcount, nlocals,
+    return PyCode_NewWithPosOnlyArgs(argcount, 0, kwonlyargcount, nlocals, deferedargcount,
                                      stacksize, flags, code, consts, names,
                                      varnames, freevars, cellvars, filename,
                                      name, qualname, firstlineno,
@@ -2253,6 +2255,7 @@ code.__new__ as code_new
     argcount: int
     posonlyargcount: int
     kwonlyargcount: int
+    deferedargcount: int
     nlocals: int
     stacksize: int
     flags: int
@@ -2275,13 +2278,13 @@ Create a code object.  Not for the faint of heart.
 
 static PyObject *
 code_new_impl(PyTypeObject *type, int argcount, int posonlyargcount,
-              int kwonlyargcount, int nlocals, int stacksize, int flags,
-              PyObject *code, PyObject *consts, PyObject *names,
-              PyObject *varnames, PyObject *filename, PyObject *name,
-              PyObject *qualname, int firstlineno, PyObject *linetable,
-              PyObject *exceptiontable, PyObject *freevars,
-              PyObject *cellvars)
-/*[clinic end generated code: output=069fa20d299f9dda input=e31da3c41ad8064a]*/
+              int kwonlyargcount, int deferedargcount, int nlocals,
+              int stacksize, int flags, PyObject *code, PyObject *consts,
+              PyObject *names, PyObject *varnames, PyObject *filename,
+              PyObject *name, PyObject *qualname, int firstlineno,
+              PyObject *linetable, PyObject *exceptiontable,
+              PyObject *freevars, PyObject *cellvars)
+/*[clinic end generated code: output=e3e6debf2daaaabe input=45b1f02d8ca52860]*/
 {
     PyObject *co = NULL;
     PyObject *ournames = NULL;
@@ -2342,7 +2345,7 @@ code_new_impl(PyTypeObject *type, int argcount, int posonlyargcount,
         goto cleanup;
 
     co = (PyObject *)PyCode_NewWithPosOnlyArgs(argcount, posonlyargcount,
-                                               kwonlyargcount,
+                                               kwonlyargcount, deferedargcount,
                                                nlocals, stacksize, flags,
                                                code, consts, ournames,
                                                ourvarnames, ourfreevars,
@@ -2510,6 +2513,8 @@ code_richcompare(PyObject *self, PyObject *other, int op)
     if (!eq) goto unequal;
     eq = co->co_kwonlyargcount == cp->co_kwonlyargcount;
     if (!eq) goto unequal;
+    eq = co->co_deferedargcount == cp->co_deferedargcount;
+    if (!eq) goto unequal;
     eq = co->co_flags == cp->co_flags;
     if (!eq) goto unequal;
     eq = co->co_firstlineno == cp->co_firstlineno;
@@ -2600,6 +2605,7 @@ code_hash(PyObject *self)
     SCRAMBLE_IN(co->co_argcount);
     SCRAMBLE_IN(co->co_posonlyargcount);
     SCRAMBLE_IN(co->co_kwonlyargcount);
+    SCRAMBLE_IN(co->co_deferedargcount);
     SCRAMBLE_IN(co->co_flags);
     SCRAMBLE_IN(co->co_firstlineno);
     SCRAMBLE_IN(Py_SIZE(co));
@@ -2622,6 +2628,7 @@ static PyMemberDef code_memberlist[] = {
     {"co_argcount",        Py_T_INT,     OFF(co_argcount),        Py_READONLY},
     {"co_posonlyargcount", Py_T_INT,     OFF(co_posonlyargcount), Py_READONLY},
     {"co_kwonlyargcount",  Py_T_INT,     OFF(co_kwonlyargcount),  Py_READONLY},
+    {"co_deferedargcount",  Py_T_INT,    OFF(co_deferedargcount),  Py_READONLY},
     {"co_stacksize",       Py_T_INT,     OFF(co_stacksize),       Py_READONLY},
     {"co_flags",           Py_T_INT,     OFF(co_flags),           Py_READONLY},
     {"co_nlocals",         Py_T_INT,     OFF(co_nlocals),         Py_READONLY},
@@ -2733,6 +2740,7 @@ code.replace
     co_argcount: int(c_default="((PyCodeObject *)self)->co_argcount") = unchanged
     co_posonlyargcount: int(c_default="((PyCodeObject *)self)->co_posonlyargcount") = unchanged
     co_kwonlyargcount: int(c_default="((PyCodeObject *)self)->co_kwonlyargcount") = unchanged
+    co_deferedargcount: int(c_default="((PyCodeObject *)self)->co_deferedargcount") = unchanged
     co_nlocals: int(c_default="((PyCodeObject *)self)->co_nlocals") = unchanged
     co_stacksize: int(c_default="((PyCodeObject *)self)->co_stacksize") = unchanged
     co_flags: int(c_default="((PyCodeObject *)self)->co_flags") = unchanged
@@ -2755,14 +2763,14 @@ Return a copy of the code object with new values for the specified fields.
 static PyObject *
 code_replace_impl(PyCodeObject *self, int co_argcount,
                   int co_posonlyargcount, int co_kwonlyargcount,
-                  int co_nlocals, int co_stacksize, int co_flags,
-                  int co_firstlineno, PyObject *co_code, PyObject *co_consts,
-                  PyObject *co_names, PyObject *co_varnames,
-                  PyObject *co_freevars, PyObject *co_cellvars,
-                  PyObject *co_filename, PyObject *co_name,
-                  PyObject *co_qualname, PyObject *co_linetable,
-                  PyObject *co_exceptiontable)
-/*[clinic end generated code: output=e75c48a15def18b9 input=e944fdac8b456114]*/
+                  int co_deferedargcount, int co_nlocals, int co_stacksize,
+                  int co_flags, int co_firstlineno, PyObject *co_code,
+                  PyObject *co_consts, PyObject *co_names,
+                  PyObject *co_varnames, PyObject *co_freevars,
+                  PyObject *co_cellvars, PyObject *co_filename,
+                  PyObject *co_name, PyObject *co_qualname,
+                  PyObject *co_linetable, PyObject *co_exceptiontable)
+/*[clinic end generated code: output=63947e93f940976e input=f44ecdc2221fd1e1]*/
 {
 #define CHECK_INT_ARG(ARG) \
         if (ARG < 0) { \
@@ -2774,6 +2782,7 @@ code_replace_impl(PyCodeObject *self, int co_argcount,
     CHECK_INT_ARG(co_argcount);
     CHECK_INT_ARG(co_posonlyargcount);
     CHECK_INT_ARG(co_kwonlyargcount);
+    CHECK_INT_ARG(co_deferedargcount);
     CHECK_INT_ARG(co_nlocals);
     CHECK_INT_ARG(co_stacksize);
     CHECK_INT_ARG(co_flags);
@@ -2825,8 +2834,8 @@ code_replace_impl(PyCodeObject *self, int co_argcount,
     }
 
     co = PyCode_NewWithPosOnlyArgs(
-        co_argcount, co_posonlyargcount, co_kwonlyargcount, co_nlocals,
-        co_stacksize, co_flags, co_code, co_consts, co_names,
+        co_argcount, co_posonlyargcount, co_kwonlyargcount, co_deferedargcount,
+        co_nlocals, co_stacksize, co_flags, co_code, co_consts, co_names,
         co_varnames, co_freevars, co_cellvars, co_filename, co_name,
         co_qualname, co_firstlineno,
         co_linetable, co_exceptiontable);

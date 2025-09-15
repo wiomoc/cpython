@@ -180,7 +180,7 @@ class _DeadlockError(RuntimeError):
 
 
 
-def _has_deadlocked(target_id, *, seen_ids, candidate_ids, blocking_on):
+def _has_deadlocked(target_id, seen_ids, candidate_ids, blocking_on):
     """Check if 'target_id' is holding the same lock as another thread(s).
 
     The search within 'blocking_on' starts with the threads listed in

@@ -654,6 +654,7 @@ w_complex_object(PyObject *v, char flag, WFILE *p)
         w_long(co->co_argcount, p);
         w_long(co->co_posonlyargcount, p);
         w_long(co->co_kwonlyargcount, p);
+        w_long(co->co_deferedargcount, p);
         w_long(co->co_stacksize, p);
         w_long(co->co_flags, p);
         w_object(co_code, p);
@@ -1505,6 +1506,7 @@ r_object(RFILE *p)
             int argcount;
             int posonlyargcount;
             int kwonlyargcount;
+            int deferedargcount;
             int stacksize;
             int flags;
             PyObject *code = NULL;
@@ -1540,6 +1542,9 @@ r_object(RFILE *p)
             }
             kwonlyargcount = (int)r_long(p);
             if (kwonlyargcount == -1 && PyErr_Occurred())
+                goto code_error;
+            deferedargcount = (int)r_long(p);
+            if (deferedargcount == -1 && PyErr_Occurred())
                 goto code_error;
             stacksize = (int)r_long(p);
             if (stacksize == -1 && PyErr_Occurred())
@@ -1600,6 +1605,7 @@ r_object(RFILE *p)
                 .argcount = argcount,
                 .posonlyargcount = posonlyargcount,
                 .kwonlyargcount = kwonlyargcount,
+                .deferedargcount = deferedargcount,
 
                 .stacksize = stacksize,
 

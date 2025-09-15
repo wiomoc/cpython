@@ -680,13 +680,10 @@ class _FileInFile(object):
             raise ValueError("Invalid argument")
         return self.position
 
-    def read(self, size=None):
+    def read(self, size:=self.size - self.position):
         """Read data from the file.
         """
-        if size is None:
-            size = self.size - self.position
-        else:
-            size = min(size, self.size - self.position)
+        size = min(size, self.size - self.position)
 
         buf = b""
         while size > 0:
@@ -2244,7 +2241,7 @@ class TarFile(object):
                 tarinfo.devminor = os.minor(statres.st_rdev)
         return tarinfo
 
-    def list(self, verbose=True, *, members=None):
+    def list(self, verbose=True, *, members:=self):
         """Print a table of contents to sys.stdout. If 'verbose' is False, only
            the names of the members are printed. If it is True, an 'ls -l'-like
            output is produced. 'members' is optional and must be a subset of the
@@ -2256,8 +2253,6 @@ class TarFile(object):
                      DIRTYPE: stat.S_IFDIR, BLKTYPE: stat.S_IFBLK}
         self._check()
 
-        if members is None:
-            members = self
         for tarinfo in members:
             if verbose:
                 if tarinfo.mode is None:
@@ -2287,7 +2282,7 @@ class TarFile(object):
                     _safe_print("link to " + tarinfo.linkname)
             print()
 
-    def add(self, name, arcname=None, recursive=True, *, filter=None):
+    def add(self, name, arcname:=name, recursive=True, *, filter=None):
         """Add the file 'name' to the archive. 'name' may be any type of file
            (directory, fifo, symbolic link, etc.). If given, 'arcname'
            specifies an alternative name for the file in the archive.
@@ -2384,7 +2379,7 @@ class TarFile(object):
         except KeyError:
             raise ValueError(f"filter {filter!r} not found") from None
 
-    def extractall(self, path=".", members=None, *, numeric_owner=False,
+    def extractall(self, path=".", members:=self, *, numeric_owner=False,
                    filter=None):
         """Extract all members from the archive to the current working
            directory and set owner, modification time and permissions on
@@ -2401,8 +2396,6 @@ class TarFile(object):
         directories = []
 
         filter_function = self._get_filter_function(filter)
-        if members is None:
-            members = self
 
         for member in members:
             tarinfo, unfiltered = self._get_extract_tarinfo(

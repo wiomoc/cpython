@@ -99,11 +99,10 @@ class Timer:
     """
 
     def __init__(self, stmt="pass", setup="pass", timer=default_timer,
-                 globals=None):
+                 global_ns:=globals()):
         """Constructor.  See class doc string."""
         self.timer = timer
         local_ns = {}
-        global_ns = _globals() if globals is None else globals
         init = ''
         if isinstance(setup, str):
             # Check that the code can be compiled outside a function

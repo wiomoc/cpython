@@ -232,6 +232,7 @@ struct _PyCodeConstructor {
     int posonlyargcount;
     // XXX Replace argcount with posorkwargcount (argcount - posonlyargcount).
     int kwonlyargcount;
+    int deferedargcount;
 
     /* needed to create the frame */
     int stacksize;

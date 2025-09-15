@@ -815,7 +815,7 @@ stackdepth_push(basicblock ***sp, basicblock *b, int depth)
  * cycles in the flow graph have no net effect on the stack depth.
  */
 static int
-calculate_stackdepth(cfg_builder *g)
+calculate_stackdepth(cfg_builder *g, int deferedargcount)
 {
     basicblock *entryblock = g->g_entryblock;
     for (basicblock *b = entryblock; b != NULL; b = b->b_next) {
@@ -830,7 +830,7 @@ calculate_stackdepth(cfg_builder *g)
     int stackdepth = -1;
     int maxdepth = 0;
     basicblock **sp = stack;
-    if (stackdepth_push(&sp, entryblock, 0) < 0) {
+    if (stackdepth_push(&sp, entryblock, deferedargcount) < 0) {
         goto error;
     }
     while (sp != stack) {
@@ -2754,7 +2754,7 @@ load_fast_push_block(basicblock ***sp, basicblock *target,
  * non-violating LOAD_FAST{_LOAD_FAST} can be optimized.
  */
 static int
-optimize_load_fast(cfg_builder *g)
+optimize_load_fast(cfg_builder *g, int deferedargcount)
 {
     int status;
     ref_stack refs = {0};
@@ -2777,7 +2777,7 @@ optimize_load_fast(cfg_builder *g)
     basicblock **sp = blocks;
     *sp = entryblock;
     sp++;
-    entryblock->b_startdepth = 0;
+    entryblock->b_startdepth = deferedargcount;
     entryblock->b_visited = 1;
 
     #define PUSH_REF(instr, local)                \
@@ -3983,7 +3983,7 @@ _PyCfg_OptimizedCfgToInstructionSequence(cfg_builder *g,
 {
     RETURN_IF_ERROR(convert_pseudo_conditional_jumps(g));
 
-    *stackdepth = calculate_stackdepth(g);
+    *stackdepth = calculate_stackdepth(g, umd->u_deferedargcount);
     if (*stackdepth < 0) {
         return ERROR;
     }
@@ -4012,7 +4012,7 @@ _PyCfg_OptimizedCfgToInstructionSequence(cfg_builder *g,
     /* Can't modify the bytecode after inserting instructions that produce
      * borrowed references.
      */
-    RETURN_IF_ERROR(optimize_load_fast(g));
+    RETURN_IF_ERROR(optimize_load_fast(g, umd->u_deferedargcount));
 
     /* Can't modify the bytecode after computing jump offsets. */
     if (_PyCfg_ToInstructionSequence(g, seq) < 0) {
@@ -4098,11 +4098,11 @@ _PyCompile_OptimizeCfg(PyObject *seq, PyObject *consts, int nlocals)
         goto error;
     }
 
-    if (calculate_stackdepth(g) == ERROR) {
+    if (calculate_stackdepth(g, 0) == ERROR) {
         goto error;
     }
 
-    if (optimize_load_fast(g) != SUCCESS) {
+    if (optimize_load_fast(g, 0) != SUCCESS) {
         goto error;
     }
 

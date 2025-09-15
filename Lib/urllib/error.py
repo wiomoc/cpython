@@ -36,14 +36,12 @@ class HTTPError(URLError, urllib.response.addinfourl):
     """Raised when HTTP error occurs, but also acts like non-error return"""
     __super_init = urllib.response.addinfourl.__init__
 
-    def __init__(self, url, code, msg, hdrs, fp):
+    def __init__(self, url, code, msg, hdrs, fp:=io.BytesIO()):
         self.code = code
         self.msg = msg
         self.hdrs = hdrs
         self.fp = fp
         self.filename = url
-        if fp is None:
-            fp = io.BytesIO()
         self.__super_init(fp, hdrs, url, code)
 
     def __str__(self):

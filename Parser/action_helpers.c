@@ -428,7 +428,7 @@ _PyPegen_get_patterns(Parser *p, asdl_seq *seq)
 
 /* Constructs a NameDefaultPair */
 NameDefaultPair *
-_PyPegen_name_default_pair(Parser *p, arg_ty arg, expr_ty value, Token *tc)
+_PyPegen_name_default_pair(Parser *p, arg_ty arg, expr_ty value, int is_defered, Token *tc)
 {
     NameDefaultPair *a = _PyArena_Malloc(p->arena, sizeof(NameDefaultPair));
     if (!a) {
@@ -436,6 +436,7 @@ _PyPegen_name_default_pair(Parser *p, arg_ty arg, expr_ty value, Token *tc)
     }
     a->arg = _PyPegen_add_type_comment_to_arg(p, arg, tc);
     a->value = value;
+    a->is_defered = is_defered;
     return a;
 }
 
@@ -502,17 +503,23 @@ _get_names(Parser *p, asdl_seq *names_with_defaults)
     return seq;
 }
 
-static asdl_expr_seq *
+static asdl_arg_default_seq *
 _get_defaults(Parser *p, asdl_seq *names_with_defaults)
 {
     Py_ssize_t len = asdl_seq_LEN(names_with_defaults);
-    asdl_expr_seq *seq = _Py_asdl_expr_seq_new(len, p->arena);
+    asdl_arg_default_seq *seq = _Py_asdl_arg_default_seq_new(len, p->arena);
     if (!seq) {
         return NULL;
     }
     for (Py_ssize_t i = 0; i < len; i++) {
         NameDefaultPair *pair = asdl_seq_GET_UNTYPED(names_with_defaults, i);
-        asdl_seq_SET(seq, i, pair->value);
+        if (pair->value) {
+            arg_default_ty arg_default = _PyAST_arg_default(pair->value,
+                pair->is_defered, p->arena);
+            asdl_seq_SET(seq, i, arg_default);
+        } else {
+            asdl_seq_SET(seq, i, NULL);
+        }
     }
     return seq;
 }
@@ -579,18 +586,18 @@ static int
 _make_posdefaults(Parser *p,
                   SlashWithDefault *slash_with_default,
                   asdl_seq *names_with_default,
-                  asdl_expr_seq **posdefaults) {
+                  asdl_arg_default_seq **posdefaults) {
     if (slash_with_default != NULL && names_with_default != NULL) {
-        asdl_expr_seq *slash_with_default_values =
+        asdl_arg_default_seq *slash_with_default_values =
                 _get_defaults(p, slash_with_default->names_with_defaults);
         if (!slash_with_default_values) {
             return -1;
         }
-        asdl_expr_seq *names_with_default_values = _get_defaults(p, names_with_default);
+        asdl_arg_default_seq *names_with_default_values = _get_defaults(p, names_with_default);
         if (!names_with_default_values) {
             return -1;
         }
-        *posdefaults = (asdl_expr_seq*)_PyPegen_join_sequences(
+        *posdefaults = (asdl_arg_default_seq*)_PyPegen_join_sequences(
                 p,
                 (asdl_seq*)slash_with_default_values,
                 (asdl_seq*)names_with_default_values);
@@ -602,7 +609,7 @@ _make_posdefaults(Parser *p,
         *posdefaults = _get_defaults(p, slash_with_default->names_with_defaults);
     }
     else {
-        *posdefaults = _Py_asdl_expr_seq_new(0, p->arena);
+        *posdefaults = _Py_asdl_arg_default_seq_new(0, p->arena);
     }
     return *posdefaults == NULL ? -1 : 0;
 }
@@ -610,7 +617,7 @@ _make_posdefaults(Parser *p,
 static int
 _make_kwargs(Parser *p, StarEtc *star_etc,
              asdl_arg_seq **kwonlyargs,
-             asdl_expr_seq **kwdefaults) {
+             asdl_arg_default_seq **kwdefaults) {
     if (star_etc != NULL && star_etc->kwonlyargs != NULL) {
         *kwonlyargs = _get_names(p, star_etc->kwonlyargs);
     }
@@ -626,7 +633,7 @@ _make_kwargs(Parser *p, StarEtc *star_etc,
         *kwdefaults = _get_defaults(p, star_etc->kwonlyargs);
     }
     else {
-        *kwdefaults = _Py_asdl_expr_seq_new(0, p->arena);
+        *kwdefaults = _Py_asdl_arg_default_seq_new(0, p->arena);
     }
 
     if (*kwdefaults == NULL) {
@@ -652,7 +659,7 @@ _PyPegen_make_arguments(Parser *p, asdl_arg_seq *slash_without_default,
         return NULL;
     }
 
-    asdl_expr_seq *posdefaults;
+    asdl_arg_default_seq *posdefaults;
     if (_make_posdefaults(p,slash_with_default, names_with_default, &posdefaults) == -1) {
         return NULL;
     }
@@ -663,7 +670,7 @@ _PyPegen_make_arguments(Parser *p, asdl_arg_seq *slash_without_default,
     }
 
     asdl_arg_seq *kwonlyargs;
-    asdl_expr_seq *kwdefaults;
+    asdl_arg_default_seq *kwdefaults;
     if (_make_kwargs(p, star_etc, &kwonlyargs, &kwdefaults) == -1) {
         return NULL;
     }
@@ -691,7 +698,7 @@ _PyPegen_empty_arguments(Parser *p)
     if (!posargs) {
         return NULL;
     }
-    asdl_expr_seq *posdefaults = _Py_asdl_expr_seq_new(0, p->arena);
+    asdl_arg_default_seq *posdefaults = _Py_asdl_arg_default_seq_new(0, p->arena);
     if (!posdefaults) {
         return NULL;
     }
@@ -699,7 +706,7 @@ _PyPegen_empty_arguments(Parser *p)
     if (!kwonlyargs) {
         return NULL;
     }
-    asdl_expr_seq *kwdefaults = _Py_asdl_expr_seq_new(0, p->arena);
+    asdl_arg_default_seq *kwdefaults = _Py_asdl_arg_default_seq_new(0, p->arena);
     if (!kwdefaults) {
         return NULL;
     }

@@ -37,6 +37,8 @@ typedef struct _excepthandler *excepthandler_ty;
 
 typedef struct _arguments *arguments_ty;
 
+typedef struct _arg_default *arg_default_ty;
+
 typedef struct _arg *arg_ty;
 
 typedef struct _keyword *keyword_ty;
@@ -97,6 +99,14 @@ typedef struct {
 } asdl_arguments_seq;
 
 asdl_arguments_seq *_Py_asdl_arguments_seq_new(Py_ssize_t size, PyArena *arena);
+
+typedef struct {
+    _ASDL_SEQ_HEAD
+    arg_default_ty typed_elements[1];
+} asdl_arg_default_seq;
+
+asdl_arg_default_seq *_Py_asdl_arg_default_seq_new(Py_ssize_t size, PyArena
+                                                   *arena);
 
 typedef struct {
     _ASDL_SEQ_HEAD
@@ -554,9 +564,14 @@ struct _arguments {
     asdl_arg_seq *args;
     arg_ty vararg;
     asdl_arg_seq *kwonlyargs;
-    asdl_expr_seq *kw_defaults;
+    asdl_arg_default_seq *kw_defaults;
     arg_ty kwarg;
-    asdl_expr_seq *defaults;
+    asdl_arg_default_seq *defaults;
+};
+
+struct _arg_default {
+    expr_ty value;
+    int is_defered;
 };
 
 struct _arg {
@@ -873,8 +888,10 @@ excepthandler_ty _PyAST_ExceptHandler(expr_ty type, identifier name,
                                       end_col_offset, PyArena *arena);
 arguments_ty _PyAST_arguments(asdl_arg_seq * posonlyargs, asdl_arg_seq * args,
                               arg_ty vararg, asdl_arg_seq * kwonlyargs,
-                              asdl_expr_seq * kw_defaults, arg_ty kwarg,
-                              asdl_expr_seq * defaults, PyArena *arena);
+                              asdl_arg_default_seq * kw_defaults, arg_ty kwarg,
+                              asdl_arg_default_seq * defaults, PyArena *arena);
+arg_default_ty _PyAST_arg_default(expr_ty value, int is_defered, PyArena
+                                  *arena);
 arg_ty _PyAST_arg(identifier arg, expr_ty annotation, string type_comment, int
                   lineno, int col_offset, int end_lineno, int end_col_offset,
                   PyArena *arena);

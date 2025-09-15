@@ -1835,15 +1835,13 @@ class ZipFile:
 
         return self._extract_member(member, path, pwd)
 
-    def extractall(self, path=None, members=None, pwd=None):
+    def extractall(self, path=None, members:=self.namelist(), pwd=None):
         """Extract all members from the archive to the current working
            directory. 'path' specifies a different directory to extract to.
            'members' is optional and must be a subset of the list returned
            by namelist(). You can specify the password to decrypt all files
            using 'pwd'.
         """
-        if members is None:
-            members = self.namelist()
 
         if path is None:
             path = os.getcwd()

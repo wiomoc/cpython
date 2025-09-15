@@ -108,7 +108,7 @@ class TestTimeit(unittest.TestCase):
     def timeit(self, stmt, setup, number=None, globals=None):
         self.fake_timer = FakeTimer()
         t = timeit.Timer(stmt=stmt, setup=setup, timer=self.fake_timer,
-                globals=globals)
+                global_ns=globals)
         kwargs = {}
         if number is None:
             number = DEFAULT_NUMBER

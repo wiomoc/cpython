@@ -276,6 +276,7 @@ class Reader:
             retval.co_argcount = self.r_long()
             retval.co_posonlyargcount = self.r_long()
             retval.co_kwonlyargcount = self.r_long()
+            retval.co_deferedargcount = self.r_long()
             retval.co_stacksize = self.r_long()
             retval.co_flags = self.r_long()
             retval.co_code = self.r_object()

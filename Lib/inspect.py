@@ -415,6 +415,7 @@ def iscode(object):
         co_freevars         tuple of names of free variables
         co_posonlyargcount  number of positional only arguments
         co_kwonlyargcount   number of keyword only arguments (not including ** arg)
+        co_deferedargcount  number of defered default arguments (not including ** arg)
         co_lnotab           encoded mapping of line numbers to bytecode indices
         co_name             name with which this code object was defined
         co_names            tuple of names other than arguments and function locals
@@ -1196,7 +1197,7 @@ def getclasstree(classes, unique=False):
     return walktree(roots, children, None)
 
 # ------------------------------------------------ argument list extraction
-Arguments = namedtuple('Arguments', 'args, varargs, varkw')
+Arguments = namedtuple('Arguments', 'args, varargs, varkw, deferedargs')
 
 def getargs(co):
     """Get information about the arguments accepted by a code object.
@@ -1211,6 +1212,7 @@ def getargs(co):
     names = co.co_varnames
     nargs = co.co_argcount
     nkwargs = co.co_kwonlyargcount
+    ndeferedargs = co.co_deferedargcount
     args = list(names[:nargs])
     kwonlyargs = list(names[nargs:nargs+nkwargs])
 
@@ -1222,7 +1224,7 @@ def getargs(co):
     varkw = None
     if co.co_flags & CO_VARKEYWORDS:
         varkw = co.co_varnames[nargs]
-    return Arguments(args + kwonlyargs, varargs, varkw)
+    return Arguments(args + kwonlyargs, varargs, varkw, ndeferedargs)
 
 
 FullArgSpec = namedtuple('FullArgSpec',

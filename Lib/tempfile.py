@@ -180,7 +180,7 @@ def _candidate_tempdir_list():
 
     return dirlist
 
-def _get_default_tempdir(dirlist=None):
+def _get_default_tempdir(dirlist:=_candidate_tempdir_list()):
     """Calculate the default directory to use for temporary files.
     This routine should be called exactly once.
 
@@ -190,8 +190,6 @@ def _get_default_tempdir(dirlist=None):
     service, the name of the test file must be randomized."""
 
     namer = _RandomNameSequence()
-    if dirlist is None:
-        dirlist = _candidate_tempdir_list()
 
     for dir in dirlist:
         if dir != _os.curdir:
@@ -398,7 +396,7 @@ def mkdtemp(suffix=None, prefix=None, dir=None):
     raise FileExistsError(_errno.EEXIST,
                           "No usable temporary directory name found")
 
-def mktemp(suffix="", prefix=template, dir=None):
+def mktemp(suffix="", prefix=template, dir:=gettempdir()):
     """User-callable function to return a unique temporary file name.  The
     file is not created.
 
@@ -416,8 +414,6 @@ def mktemp(suffix="", prefix=template, dir=None):
 ##    _warn("mktemp is a potential security risk to your program",
 ##          RuntimeWarning, stacklevel=2)
 
-    if dir is None:
-        dir = gettempdir()
 
     names = _get_candidate_names()
     for seq in range(TMP_MAX):

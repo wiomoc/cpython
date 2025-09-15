@@ -1903,9 +1903,9 @@ class MiscTests(unittest.TestCase):
         interface even though HTTPError is a subclass of URLError.
         """
         msg = 'something bad happened'
-        url = code = fp = None
+        url = code = None
         hdrs = 'Content-Length: 42'
-        err = urllib.error.HTTPError(url, code, msg, hdrs, fp)
+        err = urllib.error.HTTPError(url, code, msg, hdrs)
         self.assertHasAttr(err, 'reason')
         self.assertEqual(err.reason, 'something bad happened')
         self.assertHasAttr(err, 'headers')
@@ -1917,7 +1917,7 @@ class MiscTests(unittest.TestCase):
         err.close()
 
     def test_gh_98778(self):
-        x = urllib.error.HTTPError("url", 405, "METHOD NOT ALLOWED", None, None)
+        x = urllib.error.HTTPError("url", 405, "METHOD NOT ALLOWED", None)
         self.assertEqual(getattr(x, "__notes__", ()), ())
         self.assertIsInstance(x.fp.read(), bytes)
         x.close()

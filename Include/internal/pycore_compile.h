@@ -72,6 +72,8 @@ typedef struct {
     Py_ssize_t u_argcount;        /* number of arguments for block */
     Py_ssize_t u_posonlyargcount;        /* number of positional only arguments for block */
     Py_ssize_t u_kwonlyargcount; /* number of keyword only arguments for block */
+    Py_ssize_t u_deferedargcount;        /* number of defered arguments for block */
+
 
     int u_firstlineno; /* the first lineno of the block */
 } _PyCompile_CodeUnitMetadata;

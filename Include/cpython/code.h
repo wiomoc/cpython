@@ -51,6 +51,7 @@ typedef struct {
      * - co_argcount                                                           \
      * - co_posonlyargcount                                                    \
      * - co_kwonlyargcount                                                     \
+     * - co_deferedargcount                                                    \
      * - co_nlocals                                                            \
      * - co_stacksize                                                          \
      * - co_flags                                                              \
@@ -76,6 +77,7 @@ typedef struct {
     int co_argcount;              /* #arguments, except *args */               \
     int co_posonlyargcount;       /* #positional only arguments */             \
     int co_kwonlyargcount;        /* #keyword only arguments */                \
+    int co_deferedargcount;       /* #defered arguments */                     \
     int co_stacksize;             /* #entries needed for evaluation stack */   \
     int co_firstlineno;           /* first source line number */               \
                                                                                \
@@ -179,13 +181,13 @@ Py_DEPRECATED(3.13) static inline int PyCode_GetFirstFree(PyCodeObject *op) {
 
 /* Unstable public interface */
 PyAPI_FUNC(PyCodeObject *) PyUnstable_Code_New(
-        int, int, int, int, int, PyObject *, PyObject *,
+        int, int, int, int, int, int, PyObject *, PyObject *,
         PyObject *, PyObject *, PyObject *, PyObject *,
         PyObject *, PyObject *, PyObject *, int, PyObject *,
         PyObject *);
 
 PyAPI_FUNC(PyCodeObject *) PyUnstable_Code_NewWithPosOnlyArgs(
-        int, int, int, int, int, int, PyObject *, PyObject *,
+        int, int, int, int, int, int,int, PyObject *, PyObject *,
         PyObject *, PyObject *, PyObject *, PyObject *,
         PyObject *, PyObject *, PyObject *, int, PyObject *,
         PyObject *);
@@ -193,23 +195,23 @@ PyAPI_FUNC(PyCodeObject *) PyUnstable_Code_NewWithPosOnlyArgs(
 // Old names -- remove when this API changes:
 _Py_DEPRECATED_EXTERNALLY(3.12) static inline PyCodeObject *
 PyCode_New(
-        int a, int b, int c, int d, int e, PyObject *f, PyObject *g,
+        int a, int b, int c, int d, int e, int f_, PyObject *f, PyObject *g,
         PyObject *h, PyObject *i, PyObject *j, PyObject *k,
         PyObject *l, PyObject *m, PyObject *n, int o, PyObject *p,
         PyObject *q)
 {
     return PyUnstable_Code_New(
-        a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q);
+        a, b, c, d, e, f_, f, g, h, i, j, k, l, m, n, o, p, q);
 }
 _Py_DEPRECATED_EXTERNALLY(3.12) static inline PyCodeObject *
 PyCode_NewWithPosOnlyArgs(
-        int a, int poac, int b, int c, int d, int e, PyObject *f, PyObject *g,
+        int a, int poac, int b, int c, int d, int e, int f_, PyObject *f, PyObject *g,
         PyObject *h, PyObject *i, PyObject *j, PyObject *k,
         PyObject *l, PyObject *m, PyObject *n, int o, PyObject *p,
         PyObject *q)
 {
     return PyUnstable_Code_NewWithPosOnlyArgs(
-        a, poac, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q);
+        a, poac, b, c, d, e, f_, f, g, h, i, j, k, l, m, n, o, p, q);
 }
 
 /* Creates a new empty code object with the specified source location. */

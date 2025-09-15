@@ -1778,15 +1778,23 @@ symtable_record_directive(struct symtable *st, identifier name, _Py_SourceLocati
 }
 
 static int
-has_kwonlydefaults(asdl_arg_seq *kwonlyargs, asdl_expr_seq *kw_defaults)
+has_kwonlydefaults(asdl_arg_seq *kwonlyargs, asdl_arg_default_seq *kw_defaults)
 {
     for (int i = 0; i < asdl_seq_LEN(kwonlyargs); i++) {
-        expr_ty default_ = asdl_seq_GET(kw_defaults, i);
+        arg_default_ty default_ = asdl_seq_GET(kw_defaults, i);
         if (default_) {
             return 1;
         }
     }
     return 0;
+}
+
+static int
+symtable_visit_arg_default(struct symtable *st, arg_default_ty arg)
+{
+    if (arg->is_defered) return 1;
+    VISIT(st, expr, arg->value);
+    return 1;
 }
 
 static int
@@ -1833,9 +1841,9 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         if (!symtable_add_def(st, s->v.FunctionDef.name, DEF_LOCAL, LOCATION(s)))
             return 0;
         if (s->v.FunctionDef.args->defaults)
-            VISIT_SEQ(st, expr, s->v.FunctionDef.args->defaults);
+            VISIT_SEQ(st, arg_default, s->v.FunctionDef.args->defaults);
         if (s->v.FunctionDef.args->kw_defaults)
-            VISIT_SEQ_WITH_NULL(st, expr, s->v.FunctionDef.args->kw_defaults);
+            VISIT_SEQ_WITH_NULL(st, arg_default, s->v.FunctionDef.args->kw_defaults);
         if (s->v.FunctionDef.decorator_list)
             VISIT_SEQ(st, expr, s->v.FunctionDef.decorator_list);
         if (asdl_seq_LEN(s->v.FunctionDef.type_params) > 0) {
@@ -1871,6 +1879,7 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
             return 0;
         }
         Py_DECREF(new_ste);
+        // wac_todo
         VISIT(st, arguments, s->v.FunctionDef.args);
         VISIT_SEQ(st, stmt, s->v.FunctionDef.body);
         if (!symtable_exit_block(st))
@@ -2189,9 +2198,9 @@ symtable_visit_stmt(struct symtable *st, stmt_ty s)
         if (!symtable_add_def(st, s->v.AsyncFunctionDef.name, DEF_LOCAL, LOCATION(s)))
             return 0;
         if (s->v.AsyncFunctionDef.args->defaults)
-            VISIT_SEQ(st, expr, s->v.AsyncFunctionDef.args->defaults);
+            VISIT_SEQ(st, arg_default, s->v.AsyncFunctionDef.args->defaults);
         if (s->v.AsyncFunctionDef.args->kw_defaults)
-            VISIT_SEQ_WITH_NULL(st, expr,
+            VISIT_SEQ_WITH_NULL(st, arg_default,
                                 s->v.AsyncFunctionDef.args->kw_defaults);
         if (s->v.AsyncFunctionDef.decorator_list)
             VISIT_SEQ(st, expr, s->v.AsyncFunctionDef.decorator_list);
@@ -2410,9 +2419,9 @@ symtable_visit_expr(struct symtable *st, expr_ty e)
         break;
     case Lambda_kind: {
         if (e->v.Lambda.args->defaults)
-            VISIT_SEQ(st, expr, e->v.Lambda.args->defaults);
+            VISIT_SEQ(st, arg_default, e->v.Lambda.args->defaults);
         if (e->v.Lambda.args->kw_defaults)
-            VISIT_SEQ_WITH_NULL(st, expr, e->v.Lambda.args->kw_defaults);
+            VISIT_SEQ_WITH_NULL(st, arg_default, e->v.Lambda.args->kw_defaults);
         if (!symtable_enter_block(st, &_Py_STR(anon_lambda),
                                   FunctionBlock, (void *)e, LOCATION(e))) {
             return 0;
@@ -2866,8 +2875,16 @@ symtable_visit_arguments(struct symtable *st, arguments_ty a)
     /* skip default arguments inside function block
        XXX should ast be different?
     */
+
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(a->defaults); i++) {
+        arg_default_ty default_arg = asdl_seq_GET(a->defaults, i);
+        if(!default_arg->is_defered) continue;
+        VISIT(st, expr, default_arg->value);
+    }
+
     if (a->posonlyargs && !symtable_visit_params(st, a->posonlyargs))
         return 0;
+
     if (a->args && !symtable_visit_params(st, a->args))
         return 0;
     if (a->kwonlyargs && !symtable_visit_params(st, a->kwonlyargs))
@@ -2881,6 +2898,12 @@ symtable_visit_arguments(struct symtable *st, arguments_ty a)
         if (!symtable_add_def(st, a->kwarg->arg, DEF_PARAM, LOCATION(a->kwarg)))
             return 0;
         st->st_cur->ste_varkeywords = 1;
+    }
+
+    for (Py_ssize_t i = 0; i < asdl_seq_LEN(a->kw_defaults); i++) {
+        arg_default_ty default_arg = asdl_seq_GET(a->kw_defaults, i);
+        if(!default_arg || !default_arg->is_defered) continue;
+        VISIT(st, expr, default_arg->value);
     }
     return 1;
 }

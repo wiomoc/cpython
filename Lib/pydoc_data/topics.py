@@ -11321,6 +11321,10 @@ Special read-only attributes
 |                                                    | arguments with default values) that the function   |
 |                                                    | has                                                |
 +----------------------------------------------------+----------------------------------------------------+
+| codeobject.co_deferedargcount                      | The number of *parameters* with a default value    |
+|                                                    | which expression is evaluated after call of the    |
+|                                                    | function                                           |
++----------------------------------------------------+----------------------------------------------------+
 | codeobject.co_nlocals                              | The number of local variables used by the function |
 |                                                    | (including parameters)                             |
 +----------------------------------------------------+----------------------------------------------------+

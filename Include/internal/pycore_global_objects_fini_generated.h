@@ -866,6 +866,7 @@ _PyStaticObjects_CheckRefcnt(PyInterpreterState *interp) {
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_cellvars));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_code));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_consts));
+    _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_deferedargcount));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_exceptiontable));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_filename));
     _PyStaticObject_CheckRefcnt((PyObject *)&_Py_ID(co_firstlineno));
